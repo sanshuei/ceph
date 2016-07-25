@@ -1149,8 +1149,31 @@ int RGWPutACLs_ObjStore::get_params()
   return op_ret;
 }
 
-static int read_all_chunked_input(req_state *s, char **pdata, int *plen,
-				  int max_read)
+int RGWPutLC_ObjStore::get_params()
+{
+  size_t cl = 0;
+  if (s->length)
+    cl = atoll(s->length);
+  if (cl) {
+    data = (char *)malloc(cl + 1);
+    if (!data) {
+       ret = -ENOMEM;
+       return ret;
+    }
+    int read_len;
+    int r = STREAM_IO(s)->read(data, cl, &read_len, s->aws4_auth_needs_complete);
+    len = read_len;
+    if (r < 0)
+      return r;
+    data[len] = '\0';
+  } else {
+    len = 0;
+  }
+
+  return ret;
+}
+
+static int read_all_chunked_input(req_state *s, char **pdata, int *plen, int max_read)
 {
 #define READ_CHUNK 4096
 #define MAX_READ_CHUNK (128 * 1024)
@@ -1214,7 +1237,7 @@ int rgw_rest_read_all_input(struct req_state *s, char **pdata, int *plen,
     }
     data = (char *)malloc(cl + 1);
     if (!data) {
-       return -ENOMEM;
+      return -ENOMEM;
     }
     int ret = STREAM_IO(s)->read(data, cl, &len, s->aws4_auth_needs_complete);
     if (ret < 0) {
@@ -1797,7 +1820,7 @@ int RGWREST::preprocess(struct req_state *s, RGWClientIO* cio)
       s->info.domain = domain;
     }
 
-   ldout(s->cct, 20)
+    ldout(s->cct, 20)
       << "final domain/bucket"
       << " subdomain=" << subdomain
       << " domain=" << domain
